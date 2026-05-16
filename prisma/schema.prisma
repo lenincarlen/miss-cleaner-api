@@ -1,0 +1,771 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model StatusCode {
+  id            String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  domain        String
+  code          String
+  label         String
+  description   String?
+  is_active     Boolean        @default(true)
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime       @default(now()) @db.Timestamptz(6)
+  institutions  Institution[]
+  organizations Organization[]
+
+  @@unique([domain, code])
+  @@map("status_codes")
+}
+
+model Country {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  iso_code      String        @unique @db.Char(2)
+  iso3_code     String?       @unique @db.Char(3)
+  name          String
+  phone_code    String?
+  currency_code String?       @db.Char(3)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime      @default(now()) @db.Timestamptz(6)
+  institutions  Institution[]
+  profiles      Profile[]
+  states        State[]
+
+  @@map("countries")
+}
+
+model State {
+  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  country_id   String        @db.Uuid
+  iso_code     String?
+  name         String
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime      @default(now()) @db.Timestamptz(6)
+  cities       City[]
+  institutions Institution[]
+  profiles     Profile[]
+  country      Country       @relation(fields: [country_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([country_id, name])
+  @@map("states")
+}
+
+model City {
+  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  state_id     String        @db.Uuid
+  name         String
+  latitude     Decimal?      @db.Decimal(10, 6)
+  longitude    Decimal?      @db.Decimal(10, 6)
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime      @default(now()) @db.Timestamptz(6)
+  state        State         @relation(fields: [state_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  institutions Institution[]
+  profiles     Profile[]
+
+  @@unique([state_id, name])
+  @@map("cities")
+}
+
+model Currency {
+  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  iso_code     String        @unique @db.Char(3)
+  symbol       String?
+  name         String
+  precision    Int           @default(2) @db.SmallInt
+  is_active    Boolean       @default(true)
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime      @default(now()) @db.Timestamptz(6)
+  gastos       Gasto[]
+  ingresos     Ingreso[]
+  institutions Institution[]
+  orders       Order[]
+  payments     Payment[]
+  // services eliminado; Service ya no referencia Currency
+
+  @@map("currencies")
+}
+
+model Module {
+  id            String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  key           String         @unique
+  name          String
+  description   String?
+  is_active     Boolean        @default(true)
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime       @default(now()) @db.Timestamptz(6)
+  localizations Localization[]
+  permissions   Permission[]
+
+  @@map("modules")
+}
+
+model Permission {
+  id               String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  module_id        String           @db.Uuid
+  action           String
+  description      String?
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  module           Module           @relation(fields: [module_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  role_permissions RolePermission[]
+
+  @@unique([module_id, action])
+  @@map("permissions")
+}
+
+model Role {
+  id               String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name             String           @unique
+  description      String?
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  role_permissions RolePermission[]
+  user_roles       UserRole[]
+  users            User[]
+
+  @@map("roles")
+}
+
+model User {
+  id                  String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email               String         @unique
+  password_hash       String
+  role_id             String?        @db.Uuid
+  is_active           Boolean        @default(true)
+  last_login_at       DateTime?      @db.Timestamptz(6)
+  created_at          DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime       @default(now()) @db.Timestamptz(6)
+  activity_logs       ActivityLog[]
+  audit_logs          AuditLog[]
+  deliveries_assigned Delivery[]     @relation("DeliveryAssignedBy")
+  documents_created   Document[]     @relation("DocumentCreatedBy")
+  notifications       Notification[]
+  profiles            Profile[]
+  reports_generated   Report[]
+  system_events       SystemEvent[]
+  user_roles          UserRole[]
+  role                Role?          @relation(fields: [role_id], references: [id], onUpdate: NoAction)
+  plants_managed      Plant[]        @relation("UserManagesPlants")
+
+  @@map("users")
+}
+
+model UserRole {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id     String   @db.Uuid
+  role_id     String   @db.Uuid
+  assigned_at DateTime @default(now()) @db.Timestamptz(6)
+  role        Role     @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, role_id])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id            String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  role_id       String     @db.Uuid
+  permission_id String     @db.Uuid
+  granted_at    DateTime   @default(now()) @db.Timestamptz(6)
+  permission    Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  role          Role       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model Setting {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  scope       String   @default("global")
+  key         String
+  value       Json?
+  description String?
+  is_mutable  Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([scope, key])
+  @@map("settings")
+}
+
+model Localization {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  module_id       String?  @db.Uuid
+  locale          String
+  translation_key String
+  translation     Json
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  module          Module?  @relation(fields: [module_id], references: [id], onUpdate: NoAction)
+
+  @@unique([locale, translation_key])
+  @@map("localizations")
+}
+
+model Organization {
+  id                String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name              String
+  description       String?
+  organization_type String?
+  status_code_id    String?       @db.Uuid
+  created_at        DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime      @default(now()) @db.Timestamptz(6)
+  institutions      Institution[]
+  status_code       StatusCode?   @relation(fields: [status_code_id], references: [id], onUpdate: NoAction)
+
+  @@map("organizations")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model Institution {
+  id                     String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organization_id        String?        @db.Uuid
+  name                   String
+  type                   String?
+  rnc                    String?        @unique
+  address                String?
+  phone                  String?
+  contact_email          String?
+  representante          String?
+  cargo_representante    String?
+  limite_credito_mensual Decimal?       @default(0.00) @db.Decimal(12, 2)
+  credito_total_asignado Decimal?       @default(0.00) @db.Decimal(12, 2)
+  credito_disponible     Decimal?       @default(0.00) @db.Decimal(12, 2)
+  contact_person         String?
+  status_code_id         String?        @db.Uuid
+  country_id             String?        @db.Uuid
+  state_id               String?        @db.Uuid
+  city_id                String?        @db.Uuid
+  zone_id                String?        @db.Uuid
+  currency_id            String?        @db.Uuid
+  notes                  String?
+  // Allow organizations to disable payroll deduction for their members (e.g., condominiums)
+  payroll_deduction_allowed Boolean     @default(true)
+  created_at             DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime       @default(now()) @db.Timestamptz(6)
+  activity_logs          ActivityLog[]
+  documents              Document[]
+  employees              Employee[]
+  gastos                 Gasto[]
+  ingresos               Ingreso[]
+  city                   City?          @relation(fields: [city_id], references: [id], onUpdate: NoAction)
+  country                Country?       @relation(fields: [country_id], references: [id], onUpdate: NoAction)
+  currency               Currency?      @relation(fields: [currency_id], references: [id], onUpdate: NoAction)
+  organization           Organization?  @relation(fields: [organization_id], references: [id], onUpdate: NoAction)
+  state                  State?         @relation(fields: [state_id], references: [id], onUpdate: NoAction)
+  status_code            StatusCode?    @relation(fields: [status_code_id], references: [id], onUpdate: NoAction)
+  zone                   Zone?          @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+  orders                 Order[]
+  payments               Payment[]
+  profiles               Profile[]
+  reports                Report[]
+  subscriptions          Subscription[]
+
+  @@map("institutions")
+}
+
+model Category {
+  id          String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  parent_id   String?    @db.Uuid
+  name        String
+  slug        String?    @unique
+  description String?
+  created_at  DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime   @default(now()) @db.Timestamptz(6)
+  parent      Category?  @relation("CategoryChildren", fields: [parent_id], references: [id], onUpdate: NoAction)
+  children    Category[] @relation("CategoryChildren")
+  documents   Document[]
+  // services eliminado; Service ya no referencia Category
+
+  @@map("categories")
+}
+
+model Service {
+  id          String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  description String?
+
+  is_active   Boolean     @default(true)
+  created_at  DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime    @default(now()) @db.Timestamptz(6)
+  order_items OrderItem[]
+  plants      Plant[]
+
+  // category y currency eliminados para simplificar
+  // Optional banner image for showcasing the service in the frontend
+  banner_file_id String?          @db.Uuid
+  banner_file    File?            @relation("ServiceBannerFile", fields: [banner_file_id], references: [id], onUpdate: NoAction)
+  // Variants (piece types) for this service, each with its own price/icon
+  variants       ServiceVariant[]
+
+  @@map("services")
+}
+
+model ServiceVariant {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  service_id  String      @db.Uuid
+  name        String
+  // Specific price for this piece type/variant
+  price       Decimal     @db.Decimal(12, 2)
+  // Optional UI icon name or identifier (e.g., lucide icon key or custom)
+  icon_name   String?
+  created_at  DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime    @default(now()) @db.Timestamptz(6)
+  service     Service     @relation(fields: [service_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  order_items OrderItem[]
+
+  @@unique([service_id, name])
+  @@map("service_variants")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model Profile {
+  id                   String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id              String          @db.Uuid
+  institution_id       String?         @db.Uuid
+  plant_id             String?         @db.Uuid
+  zone_id              String?         @db.Uuid
+  full_name            String
+  phone                String?
+  cedula               String?         @db.VarChar(11)
+  avatar_url           String?
+  monthly_credit_limit Decimal?        @default(0.00) @db.Decimal(12, 2)
+  available_credit     Decimal?        @default(0.00) @db.Decimal(12, 2)
+  // How this client/affiliate pays: 'payroll' (discounto por nómina) o 'self_pay' (tarjeta/propio)
+  payment_mode         String?         @default("payroll")
+  expo_push_token      String?         @db.VarChar(255)
+  client_code          String?         @unique @default(dbgenerated("generate_client_code()"))
+  country_id           String?         @db.Uuid
+  state_id             String?         @db.Uuid
+  city_id              String?         @db.Uuid
+  address              String?
+  created_at           DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime        @default(now()) @db.Timestamptz(6)
+  client_bags          ClientBag[]
+  deliveries_accepted  Delivery[]      @relation("DeliveryAcceptedBy")
+  deliveries_drop      Delivery[]      @relation("DropProfile")
+  deliveries_pickup    Delivery[]      @relation("PickupProfile")
+  order_tracking       OrderTracking[]
+  employee             Employee?
+  notifications        Notification[]
+  orders               Order[]
+  payment_methods      PaymentMethod[]
+  plant                Plant?          @relation(fields: [plant_id], references: [id], onUpdate: NoAction)
+  zone                 Zone?           @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+  city                 City?           @relation(fields: [city_id], references: [id], onUpdate: NoAction)
+  country              Country?        @relation(fields: [country_id], references: [id], onUpdate: NoAction)
+  institution          Institution?    @relation(fields: [institution_id], references: [id], onUpdate: NoAction)
+  state                State?          @relation(fields: [state_id], references: [id], onUpdate: NoAction)
+  user                 User            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("profiles")
+}
+
+model PaymentMethod {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id        String   @db.Uuid
+  provider          String   @default("cardnet")
+  token             String   @unique
+  cardholder_name   String?
+  brand             String?
+  last4             String   @db.VarChar(4)
+  exp_month         Int
+  exp_year          Int
+  is_default        Boolean  @default(false)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+  profile           Profile  @relation(fields: [profile_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([profile_id])
+  @@map("payment_methods")
+}
+
+model Employee {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id        String      @unique @db.Uuid
+  institution_id    String      @db.Uuid
+  job_title         String?
+  department        String?
+  employment_status String?     @default("active")
+  hire_date         DateTime?   @db.Date
+  termination_date  DateTime?   @db.Date
+  notes             String?
+  created_at        DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime    @default(now()) @db.Timestamptz(6)
+  institution       Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  profile           Profile     @relation(fields: [profile_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("employees")
+}
+
+model ClientBag {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  profile_id    String   @db.Uuid
+  bag_number    String   @unique @default(dbgenerated("generate_bag_number()"))
+  qr_code       String?  @unique
+  status        String   @default("active")
+  assigned_date DateTime @default(now()) @db.Timestamptz(6)
+  notes         String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+  profile       Profile  @relation(fields: [profile_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  orders        Order[]
+
+  @@map("client_bags")
+}
+
+model Document {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  title          String
+  description    String?
+  owner_type     String?
+  owner_id       String?      @db.Uuid
+  category_id    String?      @db.Uuid
+  institution_id String?      @db.Uuid
+  created_by     String?      @db.Uuid
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
+  category       Category?    @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+  creator        User?        @relation("DocumentCreatedBy", fields: [created_by], references: [id], onUpdate: NoAction)
+  institution    Institution? @relation(fields: [institution_id], references: [id], onUpdate: NoAction)
+  files          File[]
+
+  @@map("documents")
+}
+
+model File {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  document_id       String?   @db.Uuid
+  storage_path      String
+  original_name     String
+  mime_type         String?
+  file_size         BigInt?
+  checksum          String?
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  document          Document? @relation(fields: [document_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  payments_receipts Payment[] @relation("PaymentReceipt")
+  reports           Report[]
+  services_banners  Service[] @relation("ServiceBannerFile")
+
+  @@map("files")
+}
+
+model Subscription {
+  id             String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  institution_id String      @db.Uuid
+  status         String      @default("active")
+  start_date     DateTime    @db.Date
+  end_date       DateTime?   @db.Date
+  billing_cycle  String?     @default("monthly")
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime    @default(now()) @db.Timestamptz(6)
+  orders         Order[]
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("subscriptions")
+}
+
+model Order {
+  id                      String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  order_number            String          @default(dbgenerated("generate_order_number()"))
+  profile_id              String          @db.Uuid
+  institution_id          String          @db.Uuid
+  subscription_id         String?         @db.Uuid
+  client_bag_id           String?         @db.Uuid
+  plant_id                String?         @db.Uuid
+  zone_id                 String?         @db.Uuid
+  service_type            String?
+  status                  String          @default("pending_pickup")
+  total_amount            Decimal?        @db.Decimal(12, 2)
+  currency_id             String?         @db.Uuid
+  extra_options           Json?
+  special_instructions    String?
+  created_at              DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime        @default(now()) @db.Timestamptz(6)
+  picked_up_at            DateTime?       @db.Timestamptz(6)
+  ready_at                DateTime?       @db.Timestamptz(6)
+  delivered_at            DateTime?       @db.Timestamptz(6)
+  estimated_delivery_date DateTime?       @db.Timestamptz(6)
+  weight_lbs              Decimal?        @db.Decimal(6, 2)
+  // Códigos de confirmación para cada etapa del flujo
+  pickup_confirmation_code          String?   @unique @db.VarChar(10)
+  plant_received_confirmation_code  String?   @unique @db.VarChar(10)
+  plant_ready_confirmation_code     String?   @unique @db.VarChar(10)
+  final_delivery_confirmation_code  String?   @unique @db.VarChar(10)
+  // Timestamps de confirmaciones
+  pickup_confirmed_at               DateTime? @db.Timestamptz(6)
+  plant_received_confirmed_at       DateTime? @db.Timestamptz(6)
+  plant_ready_confirmed_at          DateTime? @db.Timestamptz(6)
+  final_delivery_confirmed_at       DateTime? @db.Timestamptz(6)
+  discount_amount         Decimal?        @db.Decimal(12, 2)
+  tax_amount              Decimal?        @db.Decimal(12, 2)
+  total_price             Decimal?        @db.Decimal(12, 2)
+  deliveries              Delivery[]
+  ingresos                Ingreso[]
+  order_items             OrderItem[]
+  client_bag              ClientBag?      @relation(fields: [client_bag_id], references: [id], onUpdate: NoAction)
+  currency                Currency?       @relation(fields: [currency_id], references: [id], onUpdate: NoAction)
+  institution             Institution     @relation(fields: [institution_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  profile                 Profile         @relation(fields: [profile_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  subscription            Subscription?   @relation(fields: [subscription_id], references: [id], onUpdate: NoAction)
+  plant                   Plant?          @relation(fields: [plant_id], references: [id], onUpdate: NoAction)
+  zone                    Zone?           @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+  order_tracking          OrderTracking[]
+
+  @@index([institution_id], map: "idx_orders_institution_id")
+  @@index([profile_id], map: "idx_orders_profile_id")
+  @@index([plant_id], map: "idx_orders_plant_id")
+  @@index([zone_id], map: "idx_orders_zone_id")
+  @@map("orders")
+}
+
+model OrderItem {
+  id                 String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  order_id           String          @db.Uuid
+  service_id         String?         @db.Uuid
+  service_variant_id String?         @db.Uuid
+  description        String
+  quantity           Int             @default(1)
+  unit_price         Decimal         @default(0.00) @db.Decimal(12, 2)
+  total_price        Decimal         @default(0.00) @db.Decimal(12, 2)
+  notes              String?
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  order              Order           @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  service            Service?        @relation(fields: [service_id], references: [id], onUpdate: NoAction)
+  service_variant    ServiceVariant? @relation(fields: [service_variant_id], references: [id], onUpdate: NoAction)
+
+  @@map("order_items")
+}
+
+model Delivery {
+  id                         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  order_id                   String    @db.Uuid
+  pickup_profile_id          String?   @db.Uuid
+  delivery_profile_id        String?   @db.Uuid
+  pickup_address             String?
+  delivery_address           String?
+  scheduled_pickup_date      DateTime? @db.Timestamptz(6)
+  scheduled_delivery_date    DateTime? @db.Timestamptz(6)
+  status                     String    @default("pending")
+  notes                      String?
+  pickup_confirmation_code   String?
+  delivery_confirmation_code String?
+  created_at                 DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime  @default(now()) @db.Timestamptz(6)
+  assigned_by_user_id        String?   @db.Uuid
+  accepted_by_profile_id     String?   @db.Uuid
+  assigned_at                DateTime? @db.Timestamptz(6)
+  accepted_at                DateTime? @db.Timestamptz(6)
+  delivered_at               DateTime? @db.Timestamptz(6)
+  rejection_reason           String?
+  accepted_by_profile        Profile?  @relation("DeliveryAcceptedBy", fields: [accepted_by_profile_id], references: [id], onUpdate: NoAction)
+  assigned_by_user           User?     @relation("DeliveryAssignedBy", fields: [assigned_by_user_id], references: [id], onUpdate: NoAction)
+  delivery_profile           Profile?  @relation("DropProfile", fields: [delivery_profile_id], references: [id], onUpdate: NoAction)
+  order                      Order     @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  pickup_profile             Profile?  @relation("PickupProfile", fields: [pickup_profile_id], references: [id], onUpdate: NoAction)
+
+  @@map("delivery")
+}
+
+model Notification {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String?   @db.Uuid
+  profile_id String?   @db.Uuid
+  type       String
+  title      String
+  message    String
+  data       Json?
+  is_read    Boolean   @default(false)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  read_at    DateTime? @db.Timestamptz(6)
+  profile    Profile?  @relation(fields: [profile_id], references: [id], onUpdate: NoAction)
+  user       User?     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("notifications")
+}
+
+model Report {
+  id                   String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  institution_id       String      @db.Uuid
+  reporting_period     String
+  report_type          String?     @default("general")
+  total_billed         Decimal?    @default(0.00) @db.Decimal(14, 2)
+  invoice_file_id      String?     @db.Uuid
+  payment_status       String      @default("pending")
+  generated_at         DateTime    @default(now()) @db.Timestamptz(6)
+  due_date             DateTime?   @db.Date
+  generated_by_user_id String?     @db.Uuid
+  created_at           DateTime    @default(now()) @db.Timestamptz(6)
+  payments             Payment[]
+  institution          Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  invoice_file         File?       @relation(fields: [invoice_file_id], references: [id], onUpdate: NoAction)
+  generated_by_user    User?       @relation(fields: [generated_by_user_id], references: [id], onUpdate: NoAction, onDelete: SetNull)
+
+  @@map("reports")
+}
+
+model Plant {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name              String
+  address           String?
+  phone             String?
+  email             String?
+  zone_id           String?     @db.Uuid
+  daily_capacity    Int?
+  status            PlantStatus @default(active)
+  manager_user_id   String?     @db.Uuid
+  operational_hours Json?
+  service_types     String[]
+  services          Service[]
+  is_active         Boolean     @default(true)
+  created_at        DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime    @default(now()) @db.Timestamptz(6)
+  orders            Order[]
+  operators         Profile[]
+  manager_user      User?       @relation("UserManagesPlants", fields: [manager_user_id], references: [id], onUpdate: NoAction)
+  zone              Zone?       @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+
+  @@index([zone_id])
+  @@map("plants")
+}
+
+enum PlantStatus {
+  active
+  inactive
+  pending
+}
+
+model Zone {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  description String?
+  city        String?
+  postal_code String?
+  geolocation Json?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  plants      Plant[]
+  institutions Institution[]
+  orders       Order[]
+  profiles    Profile[]
+
+  @@map("zones")
+}
+
+model Payment {
+  id              String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  report_id       String?     @db.Uuid
+  institution_id  String      @db.Uuid
+  amount          Decimal     @db.Decimal(14, 2)
+  currency_id     String?     @db.Uuid
+  payment_date    DateTime    @default(now()) @db.Timestamptz(6)
+  payment_method  String?
+  reference_code  String?
+  notes           String?
+  created_at      DateTime    @default(now()) @db.Timestamptz(6)
+  status          String?     @default("pending")
+  receipt_file_id String?     @db.Uuid
+  currency        Currency?   @relation(fields: [currency_id], references: [id], onUpdate: NoAction)
+  institution     Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  receipt_file    File?       @relation("PaymentReceipt", fields: [receipt_file_id], references: [id], onUpdate: NoAction)
+  report          Report?     @relation(fields: [report_id], references: [id], onUpdate: NoAction)
+
+  @@index([institution_id], map: "idx_payments_institution_id")
+  @@map("payments")
+}
+
+model Ingreso {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  institution_id String?      @db.Uuid
+  order_id       String?      @db.Uuid
+  amount         Decimal      @db.Decimal(14, 2)
+  currency_id    String?      @db.Uuid
+  income_date    DateTime     @default(dbgenerated("CURRENT_DATE")) @db.Date
+  income_type    String?      @default("service")
+  description    String?
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  currency       Currency?    @relation(fields: [currency_id], references: [id], onUpdate: NoAction)
+  institution    Institution? @relation(fields: [institution_id], references: [id], onUpdate: NoAction)
+  order          Order?       @relation(fields: [order_id], references: [id], onUpdate: NoAction)
+
+  @@index([institution_id], map: "idx_ingresos_institution_id")
+  @@map("ingresos")
+}
+
+model Gasto {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  institution_id String?      @db.Uuid
+  amount         Decimal      @db.Decimal(14, 2)
+  currency_id    String?      @db.Uuid
+  expense_date   DateTime     @default(dbgenerated("CURRENT_DATE")) @db.Date
+  expense_type   String?      @default("operational")
+  vendor         String?
+  description    String?
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  currency       Currency?    @relation(fields: [currency_id], references: [id], onUpdate: NoAction)
+  institution    Institution? @relation(fields: [institution_id], references: [id], onUpdate: NoAction)
+
+  @@index([institution_id], map: "idx_gastos_institution_id")
+  @@map("gastos")
+}
+
+model ActivityLog {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id        String?      @db.Uuid
+  institution_id String?      @db.Uuid
+  action         String
+  entity_name    String?
+  entity_id      String?      @db.Uuid
+  metadata       Json?
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  institution    Institution? @relation(fields: [institution_id], references: [id], onUpdate: NoAction)
+  user           User?        @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@map("activity_logs")
+}
+
+model AuditLog {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id         String?  @db.Uuid
+  action          String
+  entity_name     String
+  entity_id       String?  @db.Uuid
+  previous_values Json?
+  new_values      Json?
+  ip_address      String?
+  user_agent      String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  user            User?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@map("audit_logs")
+}
+
+model SystemEvent {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  event_type        String
+  payload           Json?
+  triggered_by      String?  @db.Uuid
+  occurred_at       DateTime @default(now()) @db.Timestamptz(6)
+  triggered_by_user User?    @relation(fields: [triggered_by], references: [id], onUpdate: NoAction)
+
+  @@map("system_events")
+}
+
+model OrderTracking {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  order_id              String   @db.Uuid
+  status_from           String
+  status_to             String
+  notes                 String?
+  changed_by_profile_id String?  @db.Uuid
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  order                 Order    @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  changed_by_profile    Profile? @relation(fields: [changed_by_profile_id], references: [id], onUpdate: NoAction)
+
+  @@map("order_tracking")
+}

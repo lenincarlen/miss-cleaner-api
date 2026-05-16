@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@types/express-serve-static-core@5.1.1':
+    hash: 612f45ba56065891895682511482e7e5087d6a56949a417ce64a3f168f077d79
+    path: patches/@types__express-serve-static-core@5.1.1.patch
+
 importers:
 
   .:
@@ -770,7 +775,7 @@ snapshots:
     dependencies:
       '@types/node': 20.19.41
 
-  '@types/express-serve-static-core@5.1.1':
+  '@types/express-serve-static-core@5.1.1(patch_hash=612f45ba56065891895682511482e7e5087d6a56949a417ce64a3f168f077d79)':
     dependencies:
       '@types/node': 20.19.41
       '@types/qs': 6.15.1
@@ -780,7 +785,7 @@ snapshots:
   '@types/express@5.0.3':
     dependencies:
       '@types/body-parser': 1.19.6
-      '@types/express-serve-static-core': 5.1.1
+      '@types/express-serve-static-core': 5.1.1(patch_hash=612f45ba56065891895682511482e7e5087d6a56949a417ce64a3f168f077d79)
       '@types/serve-static': 2.2.0
 
   '@types/http-errors@2.0.5': {}

@@ -26,6 +26,8 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 
+RUN mkdir /app/uploads && chown nodejs:nodejs /app/uploads
+
 ENV NODE_ENV=production
 ENV PORT=8082
 EXPOSE 8082

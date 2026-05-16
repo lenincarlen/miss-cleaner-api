@@ -4,6 +4,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 COPY prisma ./prisma
 COPY tsconfig.json ./
 COPY src ./src

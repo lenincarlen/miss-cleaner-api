@@ -25,8 +25,11 @@ RUN adduser --system --uid 1001 nodejs
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
+COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
+COPY --chown=nodejs:nodejs scripts/start.sh ./
 
 RUN mkdir /app/uploads && chown nodejs:nodejs /app/uploads
+RUN chmod +x /app/start.sh
 
 ENV NODE_ENV=production
 ENV PORT=8082
@@ -34,4 +37,4 @@ EXPOSE 8082
 
 USER nodejs
 
-CMD ["node", "dist/src/index.js"]
+CMD ["/bin/sh", "/app/start.sh"]
